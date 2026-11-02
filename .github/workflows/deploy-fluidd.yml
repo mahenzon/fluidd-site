@@ -1,0 +1,99 @@
+name: Deploy Fluidd
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Fluidd release tag; empty or latest selects the latest stable release'
+        required: false
+        default: latest
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+env:
+  FLUIDD_HOSTNAME: fluidd.mahenzon.ru
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Check out deployment scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read Pages configuration
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      - name: Download and prepare Fluidd
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          PAGES_URL: ${{ steps.pages.outputs.base_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/fluidd-download"
+          mkdir -p "$work"
+
+          if [[ -z "$RELEASE_VERSION" || "$RELEASE_VERSION" == latest ]]; then
+            release_endpoint=latest
+          else
+            release_endpoint="tags/$(jq -rn --arg tag "$RELEASE_VERSION" '$tag | @uri')"
+          fi
+          gh api "repos/fluidd-core/fluidd/releases/$release_endpoint" > "$work/release.json"
+          jq -e '.draft == false and .prerelease == false' "$work/release.json" > /dev/null
+          tag=$(jq -er '.tag_name' "$work/release.json")
+          asset_url=$(jq -er '.assets[] | select(.name == "fluidd.zip") | .browser_download_url' "$work/release.json")
+          encoded_tag=$(jq -rn --arg tag "$tag" '$tag | @uri')
+          commit=$(gh api "repos/fluidd-core/fluidd/commits/$encoded_tag" --jq '.sha')
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]]
+
+          curl --fail --silent --show-error --location --retry 3 \
+            "$asset_url" --output "$work/fluidd.zip"
+          curl --fail --silent --show-error --location --retry 3 \
+            "https://codeload.github.com/fluidd-core/fluidd/tar.gz/$commit" \
+            --output "$work/fluidd-source.tar.gz"
+
+          python3 scripts/prepare_site.py \
+            --release-zip "$work/fluidd.zip" \
+            --source-archive "$work/fluidd-source.tar.gz" \
+            --output "$RUNNER_TEMP/fluidd-site" \
+            --pages-url "$PAGES_URL" \
+            --hostname "$FLUIDD_HOSTNAME" \
+            --tag "$tag" --commit "$commit"
+          printf 'tag=%s\ncommit=%s\n' "$tag" "$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/fluidd-site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+      - name: Show deployment URL
+        env:
+          SITE_URL: ${{ steps.deployment.outputs.page_url }}
+          RELEASE_TAG: ${{ steps.prepare.outputs.tag }}
+          SOURCE_COMMIT: ${{ steps.prepare.outputs.commit }}
+        run: |
+          {
+            printf '### Fluidd %s\n\n' "$RELEASE_TAG"
+            printf 'Website: %s\n\n' "$SITE_URL"
+            printf 'Source commit: %s\n' "$SOURCE_COMMIT"
+          } >> "$GITHUB_STEP_SUMMARY"
