@@ -70,11 +70,16 @@ class PrepareSiteTests(unittest.TestCase):
         self.assertEqual(config["blacklist"].count(self.hostname), 1)
 
     def test_wrong_pages_domain_or_origin_is_rejected(self):
-        for url in ("https://owner.github.io/repo/", f"http://{self.hostname}/",
+        for url in ("https://owner.github.io/repo/", f"ftp://{self.hostname}/",
                     f"https://{self.hostname}/repo/", f"https://{self.hostname}:443/"):
             with self.subTest(url=url), self.assertRaises(ValueError):
                 self.prepare(pages_url=url)
         self.assertFalse(self.output.exists())
+
+    def test_http_pages_metadata_is_accepted_before_https_enforcement(self):
+        self.prepare(pages_url=f"http://{self.hostname}/")
+        config = json.loads((self.output / "config.json").read_text())
+        self.assertIn(self.hostname, config["blacklist"])
 
     def test_unsafe_release_archive_is_rejected(self):
         for name, mode in (("../escape", stat.S_IFREG), ("link", stat.S_IFLNK)):

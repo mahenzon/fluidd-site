@@ -28,8 +28,9 @@ record is required to prepare or test these files locally.
    `mahenzon.github.io`. Do not include `https://`, a repository name, or a URL path.
    If the provider offers a proxy, use DNS-only while provisioning the certificate.
 4. Enable **Enforce HTTPS** in Pages settings when the certificate is ready.
-   The workflow checks that Pages reports `https://fluidd.mahenzon.ru/` and fails
-   if the configured domain is different. No repository variable, deployed
+   The workflow checks that Pages reports `fluidd.mahenzon.ru` at the site root;
+   it also accepts HTTP in Pages metadata while HTTPS is being enabled.
+   It fails if the configured domain is different. No repository variable, deployed
    `CNAME` file, Jekyll build, or personal access token is needed.
 5. Open **Actions → Deploy Fluidd → Run workflow**, choose `master`, and run it.
    The deployment environment and run summary show the resulting website URL

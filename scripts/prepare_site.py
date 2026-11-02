@@ -15,7 +15,8 @@ import zipfile
 
 def prepare_site(release_zip, source_archive, output, pages_url, hostname, tag, commit):
     url = urlsplit(pages_url)
-    if (url.scheme != "https" or url.hostname != hostname or url.port is not None
+    # Pages can advertise HTTP before its HTTPS setting is enabled.
+    if (url.scheme not in ("http", "https") or url.hostname != hostname or url.port is not None
             or url.username is not None or url.password is not None
             or url.path not in ("", "/") or url.query or url.fragment):
         raise ValueError(f"Set the Pages custom domain to {hostname} before deploying")
