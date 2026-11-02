@@ -1,45 +1,33 @@
 # Fluidd on GitHub Pages
 
-**[Open Fluidd](https://fluidd.mahenzon.ru/)** — a web interface for Klipper 3D printers.
-Your browser connects directly to Moonraker on your home network. Your printers
-do not need to be exposed to the internet.
+**[Open Fluidd](https://fluidd.mahenzon.ru/)** to control Klipper printers on your
+home network. Your browser connects directly to Moonraker; printers stay local.
 
 ## Connect a printer
 
-1. Use **Chrome 147+** on the same network as your printer. Allow **Local network
-   access** for this site when prompted.
-2. Add the site's origin to the existing `cors_domains` list in your printer's
-   `moonraker.conf`, keeping its other entries, then restart Moonraker:
+1. Use **Chrome 147+** on your printer's network and allow **Local network access**.
+2. Append `*://fluidd.mahenzon.ru` to the existing `[authorization]` → `cors_domains`
+   list in `moonraker.conf`, then restart Moonraker. Keep other entries and settings.
+3. Add your printer in Fluidd, for example `http://192.168.1.50:7125`.
 
-   ```ini
-   [authorization]
-   cors_domains:
-       # Keep your existing entries here.
-       https://fluidd.mahenzon.ru
-   ```
-
-3. Open Fluidd and add your printer's address, for example `http://192.168.1.50:7125`.
-
-Other browsers or older versions may block HTTP printers as mixed content.
-Keep Moonraker authentication and `trusted_clients` unchanged.
+`*://` accepts HTTP/HTTPS **Fluidd website origins**; `https://fluidd.mahenzon.ru`
+also works. It does not control the printer's protocol or bypass mixed-content rules.
+Other browsers may block HTTP printers.
 
 ## Deploy or update
 
-1. Open **[Actions → Deploy Fluidd](https://github.com/mahenzon/fluidd-site/actions/workflows/deploy-fluidd.yml)**
-   and select **Run workflow**.
-2. Choose `master`. Use `latest` for the **latest stable Fluidd release**, or a
-   release tag such as `v1.37.7` to select a specific version or roll back.
-3. Run the workflow and wait for it to succeed. The run summary links to the site.
+1. Open **[Deploy Fluidd](https://github.com/mahenzon/fluidd-site/actions/workflows/deploy-fluidd.yml) → Run workflow**.
+2. Choose `master` and `latest` for the **latest stable Fluidd release**, or a tag
+   such as `v1.37.7` to select a version or roll back.
+3. Run it and wait for success. The summary links to the site.
 
-Deployments are manual. Pushing commits does not update the site.
-The site's **License & source** panel provides Fluidd's license and corresponding source.
+Pushes do not deploy. The site's **License & source** panel provides the license and source.
 
 ## Host your own copy
 
-1. Put these files in a public repository with `master` as its default branch.
-   Set `FLUIDD_HOSTNAME` in [the workflow](.github/workflows/deploy-fluidd.yml) to
-   your domain; use that domain in the printer's CORS entry too.
-2. In **Settings → Pages**, choose **GitHub Actions** and save your custom domain
-   **before changing DNS**.
-3. Point the subdomain's DNS **CNAME** to `<YOUR_GITHUB_OWNER>.github.io`.
-   Enable **Enforce HTTPS** when the certificate is ready, then run the workflow.
+1. Use a public repository with default branch `master`. Set `FLUIDD_HOSTNAME` in
+   [the workflow](.github/workflows/deploy-fluidd.yml) to your hostname;
+   use `*://YOUR_HOSTNAME` in Moonraker.
+2. In **Settings → Pages**, choose **GitHub Actions** and save your custom domain before changing DNS.
+3. Set its DNS **CNAME** to `<YOUR_GITHUB_OWNER>.github.io`, enable **Enforce HTTPS**
+   when ready, then run the workflow.
