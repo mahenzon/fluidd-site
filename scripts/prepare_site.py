@@ -2,6 +2,7 @@
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
 from html import escape
 import json
 from pathlib import Path, PurePosixPath
@@ -35,8 +36,12 @@ def prepare_site(release_zip, source_archive, output, pages_url, hostname, tag, 
 
     index_path = output / "index.html"
     index = index_path.read_text(encoding="utf-8")
-    if "</body>" not in index:
+    if "<head>" not in index or "</body>" not in index:
         raise ValueError("Expected index.html at the release archive root")
+    compat_path = Path(__file__).with_name("browser_compat.js")
+    compat = compat_path.read_text(encoding="utf-8")
+    # Inline first so even cached/offline startup cannot outrun the compatibility shim.
+    index = index.replace("<head>", "<head>\n<script>" + compat + "</script>", 1)
     config_path = output / "config.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
     blacklist = config.setdefault("blacklist", [])
@@ -55,6 +60,7 @@ def prepare_site(release_zip, source_archive, output, pages_url, hostname, tag, 
         (output / "COPYING").write_bytes(license_file.read())
     shutil.copyfile(source_archive, output / "fluidd-source.tar.gz")
     shutil.copyfile(__file__, output / "prepare_site.py")
+    shutil.copyfile(compat_path, output / "browser_compat.js")
 
     date = datetime.now(timezone.utc).date().isoformat()
     # Inline the notice: Fluidd's service worker redirects other HTML pages to the app.
@@ -73,11 +79,29 @@ for the compiled application, including its build scripts and dependency lockfil
 Upstream commit: <a href="https://github.com/fluidd-core/fluidd/tree/{commit}" target="_blank" rel="noopener">{commit}</a>.</p>
 <p>On {date}, this distribution changed <a href="./config.json" download>config.json</a>
 to enable hosted mode, clear printer endpoints, and blacklist {escape(hostname)}.
-It also added the license and source link to index.html. Compiled assets are unchanged.
-The <a href="./prepare_site.py" download>packaging script</a> is provided alongside the source.</p>
+It also added the license and source link and an early browser compatibility shim to index.html,
+and updated the service worker's index cache revision. Upstream application bundles are unchanged.
+The <a href="./prepare_site.py" download>packaging script</a> and
+<a href="./browser_compat.js" download>compatibility shim</a> are provided alongside the source.</p>
 </div></details>
 """
-    index_path.write_text(index.replace("</body>", notice + "</body>", 1), encoding="utf-8")
+    index = index.replace("</body>", notice + "</body>", 1)
+    index_path.write_text(index, encoding="utf-8")
+
+    # Workbox otherwise reuses its old cached HTML when redeploying the same Fluidd tag.
+    worker_path = output / "sw.js"
+    worker = worker_path.read_text(encoding="utf-8")
+    revision = hashlib.sha256(index.encode("utf-8")).hexdigest()
+
+    def revise_index(match):
+        entry = json.loads(match.group())
+        entry["revision"] = revision
+        return json.dumps(entry, separators=(",", ":"))
+
+    worker, count = re.subn(r'\{[^{}]*"url"\s*:\s*"index\.html"[^{}]*\}', revise_index, worker)
+    if count != 1:
+        raise ValueError("Expected exactly one index.html precache entry in sw.js")
+    worker_path.write_text(worker, encoding="utf-8")
     print(f"Prepared Fluidd {tag} for https://{hostname}/ from {commit}")
 
 

@@ -14,6 +14,24 @@ home network. Your browser connects directly to Moonraker; printers stay local.
 also works. It does not control the printer's protocol or bypass mixed-content rules.
 Other browsers may block HTTP printers.
 
+## Older iPads and Safari
+
+`AbortSignal.any is not a function` means Fluidd called a browser API unavailable
+on iOS 16.6.1. [Safari/iPadOS 17.4 introduced it](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/any_static).
+Packaging adds a compatibility shim before Fluidd starts; it preserves native
+support in newer browsers and leaves upstream application bundles unchanged. Run
+the deployment workflow, accept Fluidd's update, and reopen the page. If the old
+error persists, clearing this site's data resets its cache **and saved printer
+settings**. Chrome and Firefox on iOS 16 use the same
+WebKit engine, so switching browsers does not add this API.
+
+Fixing this error does not remove Safari's separate mixed-content restriction:
+this HTTPS site cannot connect to a plain HTTP/WebSocket printer. For an older
+iPad, open the printer's locally served Fluidd over HTTP, if installed, or use a
+printer endpoint with trusted HTTPS/WSS. CORS settings cannot bypass this rule.
+Updating to iPadOS 17.4+ fixes the missing API but does not remove that networking
+restriction.
+
 ## Deploy or update
 
 1. Open **[Deploy Fluidd](https://github.com/mahenzon/fluidd-site/actions/workflows/deploy-fluidd.yml) → Run workflow**.

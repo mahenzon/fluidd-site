@@ -33,6 +33,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Test packaging and browser compatibility
+        run: |
+          python3 -m unittest discover -s tests -v
+          node --test tests/browser_compat.test.cjs
+
       - name: Read Pages configuration
         id: pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

@@ -1,4 +1,5 @@
 import io
+import hashlib
 import json
 from pathlib import Path
 import stat
@@ -33,9 +34,12 @@ class PrepareSiteTests(unittest.TestCase):
 
     def write_release(self):
         with zipfile.ZipFile(self.release, "w") as archive:
-            archive.writestr("index.html", "<html><body><div id='app'></div></body></html>")
+            archive.writestr("index.html", '<html><head><script type="module" src="./assets/app.js">'
+                             '</script></head><body><div id="app"></div></body></html>')
             archive.writestr("config.json", json.dumps(self.config))
             archive.writestr("assets/app.js", "/* upstream notice */ console.log('Fluidd')")
+            archive.writestr("sw.js", 'precacheAndRoute([{"revision":"upstream-index",'
+                             '"url":"index.html"},{"revision":null,"url":"assets/app.js"}]);')
 
     def prepare(self, **overrides):
         arguments = dict(release_zip=self.release, source_archive=self.source,
@@ -61,6 +65,31 @@ class PrepareSiteTests(unittest.TestCase):
         self.assertIn('href="./fluidd-source.tar.gz" download', index)
         self.assertIn(self.commit, index)
         self.assertTrue((self.output / "prepare_site.py").is_file())
+
+    def test_compatibility_shim_runs_before_fluidd_and_invalidates_cached_index(self):
+        self.prepare()
+        index = (self.output / "index.html").read_text()
+        shim = (self.output / "browser_compat.js").read_text()
+        self.assertIn(shim, index)
+        self.assertLess(index.index("AbortSignal.any"), index.index('<script type="module"'))
+        revision = hashlib.sha256(index.encode("utf-8")).hexdigest()
+        worker = (self.output / "sw.js").read_text()
+        self.assertIn(f'"revision":"{revision}","url":"index.html"', worker)
+        self.assertIn('{"revision":null,"url":"assets/app.js"}', worker)
+        self.assertNotIn('"upstream-index"', worker)
+
+    def test_missing_or_ambiguous_index_precache_entry_is_rejected(self):
+        for entries in ([], [{"revision": "one", "url": "index.html"},
+                            {"revision": "two", "url": "index.html"}]):
+            with self.subTest(entries=entries):
+                archive_path = self.root / f"worker-{len(entries)}.zip"
+                with zipfile.ZipFile(self.release) as source, zipfile.ZipFile(archive_path, "w") as target:
+                    for entry in source.infolist():
+                        content = ("precacheAndRoute(" + json.dumps(entries) + ");").encode() \
+                            if entry.filename == "sw.js" else source.read(entry)
+                        target.writestr(entry, content)
+                with self.assertRaisesRegex(ValueError, "index.html precache entry"):
+                    self.prepare(release_zip=archive_path, output=self.root / f"bad-worker-{len(entries)}")
 
     def test_existing_hostname_is_not_duplicated(self):
         self.config["blacklist"].append(self.hostname)
