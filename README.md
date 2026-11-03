@@ -1,36 +1,29 @@
 # Fluidd on GitHub Pages
 
-**[Open Fluidd](https://fluidd.mahenzon.ru/)** to control Klipper printers on your
-home network. Your browser connects directly to Moonraker; printers stay local.
+**[Open Fluidd](https://fluidd.mahenzon.ru/)** · **[HTTP for iOS/iPadOS](http://fluidd.mahenzon.ru/)**
+
+Control Klipper printers on your home network. Your browser connects directly to
+Moonraker; printers stay local.
 
 ## Connect a printer
 
-1. Use **Chrome 147+** on your printer's network and allow **Local network access**.
+1. Join your printer's network. For HTTPS, use **Chrome 147+** and allow **Local
+   network access**. On iPhone or iPad, use HTTP as described below.
 2. Append `*://fluidd.mahenzon.ru` to the existing `[authorization]` → `cors_domains`
    list in `moonraker.conf`, then restart Moonraker. Keep other entries and settings.
 3. Add your printer in Fluidd, for example `http://192.168.1.50:7125`.
 
-`*://` accepts HTTP/HTTPS **Fluidd website origins**; `https://fluidd.mahenzon.ru`
-also works. It does not control the printer's protocol or bypass mixed-content rules.
-Other browsers may block HTTP printers.
+`*://` allows both HTTP and HTTPS Fluidd website origins. It does not change the
+printer's protocol or bypass browser mixed-content rules.
 
-## Older iPads and Safari
+## iOS and iPadOS
 
-`AbortSignal.any is not a function` means Fluidd called a browser API unavailable
-on iOS 16.6.1. [Safari/iPadOS 17.4 introduced it](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/any_static).
-Packaging adds a compatibility shim before Fluidd starts; it preserves native
-support in newer browsers and leaves upstream application bundles unchanged. Run
-the deployment workflow, accept Fluidd's update, and reopen the page. If the old
-error persists, clearing this site's data resets its cache **and saved printer
-settings**. Chrome and Firefox on iOS 16 use the same
-WebKit engine, so switching browsers does not add this API.
-
-Fixing this error does not remove Safari's separate mixed-content restriction:
-this HTTPS site cannot connect to a plain HTTP/WebSocket printer. For an older
-iPad, open the printer's locally served Fluidd over HTTP, if installed, or use a
-printer endpoint with trusted HTTPS/WSS. CORS settings cannot bypass this rule.
-Updating to iPadOS 17.4+ fixes the missing API but does not remove that networking
-restriction.
+On older iPhones and iPads, open **[Fluidd over HTTP](http://fluidd.mahenzon.ru/)**
+and keep `http://` in the address bar when connecting to an HTTP printer. The
+compatibility fix handles missing `AbortSignal.any()` on iOS and iPadOS 16.
+Tested on an iPad running 16.6.1. Browsers on those versions share WebKit, so
+switching browsers alone does not help. Safari blocks the HTTPS site from
+reaching plain HTTP/WebSocket printers; CORS cannot override that restriction.
 
 ## Deploy or update
 
@@ -47,5 +40,5 @@ Pushes do not deploy. The site's **License & source** panel provides the license
    [the workflow](.github/workflows/deploy-fluidd.yml) to your hostname;
    use `*://YOUR_HOSTNAME` in Moonraker.
 2. In **Settings → Pages**, choose **GitHub Actions** and save your custom domain before changing DNS.
-3. Set its DNS **CNAME** to `<YOUR_GITHUB_OWNER>.github.io`, enable **Enforce HTTPS**
-   when ready, then run the workflow.
+3. Set its DNS **CNAME** to `<YOUR_GITHUB_OWNER>.github.io` and run the workflow.
+   Leave **Enforce HTTPS** off to support HTTP access from iPhones and iPads.
